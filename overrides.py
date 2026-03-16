@@ -172,3 +172,11 @@ DATA_CONFIG["new_objv5_only"]=dict(
 )
 
 
+DATA_CONFIG["old_objv1_yolo_only"]=dict(
+    train=dict(
+        yolo_data=[ "../datasets/Objects365v1.yaml"],
+    ),
+    val=dict(yolo_data=[lvis_data]),
+)
+
+
