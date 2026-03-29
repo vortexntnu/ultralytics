@@ -142,7 +142,7 @@ Ultralytics Platform supports:
 
 **Videos:** MP4, WebM, MOV, AVI, MKV, M4V (max 1GB, frames extracted at 1 FPS, max 100 frames)
 
-**Dataset files:** ZIP or TAR archives (max 10GB on Free, 20GB on Pro, 50GB on Enterprise) containing images with optional [YOLO-format labels](../../datasets/detect/index.md#ultralytics-yolo-format), plus NDJSON exports
+**Dataset files:** ZIP or TAR archives including `.tar.gz` and `.tgz` (max 10GB on Free, 20GB on Pro, 50GB on Enterprise) containing images with optional [YOLO-format labels](../../datasets/detect/index.md#ultralytics-yolo-format), plus NDJSON exports
 
 ### What is the maximum dataset size?
 
