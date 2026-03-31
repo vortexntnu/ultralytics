@@ -113,7 +113,6 @@ class AutoBackend(nn.Module):
             | Axelera AI            | *_axelera_model/  |
             | LiteRT                | *_litert_model/   |
 
-
     Attributes:
         backend (BaseBackend): The loaded inference backend instance.
         format (str): The model format (e.g., 'pt', 'onnx', 'engine').

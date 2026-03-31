@@ -171,7 +171,6 @@ def export_formats():
         ["ExecuTorch", "executorch", "_executorch_model", True, False, ["batch"]],
         ["Axelera AI", "axelera", "_axelera_model", False, False, ["batch", "int8", "fraction", "data"]],
         ["LiteRT", "litert", "_litert_model", True, False, ["batch", "half", "int8"]],
-
     ]
     return dict(zip(["Format", "Argument", "Suffix", "CPU", "GPU", "Arguments"], zip(*x)))
 
