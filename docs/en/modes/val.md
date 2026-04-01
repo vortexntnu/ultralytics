@@ -162,7 +162,7 @@ The below examples showcase YOLO model validation with custom arguments in Pytho
     | `fn`          | Number of false negative detections (missed ground truths).    |
     | `precision`   | Precision score for the image (`tp / (tp + fp)`).              |
     | `recall`      | Recall score for the image (`tp / (tp + fn)`).                 |
-    
+
 | Method      | Return Type            | Description                                                                |
 | ----------- | ---------------------- | -------------------------------------------------------------------------- |
 | `summary()` | `List[Dict[str, Any]]` | Converts validation results to a summarized dictionary.                    |
