@@ -231,7 +231,24 @@ This version exactly replicates the default Ultralytics preprocessing with cente
 
 ## Using DALI with Ultralytics Predict
 
-You can pass a preprocessed [PyTorch](https://www.ultralytics.com/glossary/pytorch) tensor directly to `model.predict()`. When a `torch.Tensor` is passed, Ultralytics **skips image preprocessing** (letterbox, BGR→RGB, HWC→CHW, and /255 normalization) and only performs device transfer and [dtype](https://www.ultralytics.com/glossary/precision) casting before sending it to the model:
+You can pass a preprocessed [PyTorch](https://www.ultralytics.com/glossary/pytorch) tensor directly to `model.predict()`. When a `torch.Tensor` is passed, Ultralytics **skips image preprocessing** (letterbox, BGR→RGB, HWC→CHW, and /255 normalization) and only performs device transfer and [dtype](https://www.ultralytics.com/glossary/precision) casting before sending it to the model.
+
+Since Ultralytics doesn't have access to the original image dimensions in this case, detection box coordinates are returned in the 640×640 letterboxed space. To map them back to original image coordinates, reverse the letterbox transform using the scale and padding offsets:
+
+```python
+# Reverse letterbox: convert boxes from 640x640 back to original image coords
+scale = min(640 / orig_h, 640 / orig_w)
+pad_top = (640 - round(orig_h * scale)) / 2
+pad_left = (640 - round(orig_w * scale)) / 2
+
+# For each box [x1, y1, x2, y2]
+orig_x1 = (box_x1 - pad_left) / scale
+orig_y1 = (box_y1 - pad_top) / scale
+orig_x2 = (box_x2 - pad_left) / scale
+orig_y2 = (box_y2 - pad_top) / scale
+```
+
+This applies to all external preprocessing paths — direct tensor input, video streams, and Triton deployment.
 
 !!! example "DALI + Ultralytics predict"
 
@@ -538,7 +555,6 @@ ensemble_scheduling {
     input_tensor = httpclient.InferInput("INPUT", image_data.shape, "UINT8")
     input_tensor.set_data_from_numpy(image_data)
 
-    # Run inference through the ensemble
     # Run inference through the ensemble
     result = client.infer(model_name="ensemble_dali_yolo", inputs=[input_tensor])
     detections = result.as_numpy("OUTPUT")  # Shape: (1, 300, 6) -> [x1, y1, x2, y2, conf, class_id]
