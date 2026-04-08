@@ -384,15 +384,18 @@ class ConfusionMatrix(DataExportMixin):
             conf (float, optional): Confidence threshold for detections.
             iou_thres (float, optional): IoU threshold for matching detections to ground truth.
         """
-        detections, gt_classes, detection_classes, matches = self._match_detections(detections, batch, conf, iou_thres)
-        gt_cls = batch["cls"]
+        gt_cls, gt_bboxes = batch["cls"], batch["bboxes"]
         if self.matches is not None:  # only if visualization is enabled
             self.matches = {k: defaultdict(list) for k in {"TP", "FP", "FN", "GT"}}
             for i in range(gt_cls.shape[0]):
                 self._append_matches("GT", batch, i)  # store GT
+        is_obb = gt_bboxes.shape[1] == 5  # check if boxes contains angle for OBB
+        conf = 0.25 if conf in {None, 0.01 if is_obb else 0.001} else conf  # apply 0.25 if default val conf is passed
         no_pred = detections["cls"].shape[0] == 0
         if gt_cls.shape[0] == 0:  # Check if labels is empty
             if not no_pred:
+                detections = {k: detections[k][detections["conf"] > conf] for k in detections}
+                detection_classes = detections["cls"].int().tolist()
                 for i, dc in enumerate(detection_classes):
                     self.matrix[dc, self.nc] += 1  # FP
                     self._append_matches("FP", detections, i)
@@ -403,6 +406,23 @@ class ConfusionMatrix(DataExportMixin):
                 self.matrix[self.nc, gc] += 1  # FN
                 self._append_matches("FN", batch, i)
             return
+
+        detections = {k: detections[k][detections["conf"] > conf] for k in detections}
+        gt_classes = gt_cls.int().tolist()
+        detection_classes = detections["cls"].int().tolist()
+        bboxes = detections["bboxes"]
+        iou = batch_probiou(gt_bboxes, bboxes) if is_obb else box_iou(gt_bboxes, bboxes)
+
+        x = torch.where(iou > iou_thres)
+        if x[0].shape[0]:
+            matches = torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()
+            if x[0].shape[0] > 1:
+                matches = matches[matches[:, 2].argsort()[::-1]]
+                matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
+                matches = matches[matches[:, 2].argsort()[::-1]]
+                matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
+        else:
+            matches = np.zeros((0, 3))
 
         n = matches.shape[0] > 0
         m0, m1, _ = matches.transpose().astype(int)
@@ -425,55 +445,21 @@ class ConfusionMatrix(DataExportMixin):
                 self.matrix[dc, self.nc] += 1  # FP
                 self._append_matches("FP", detections, i)
 
-    def _match_detections(
-        self, detections: dict[str, torch.Tensor], batch: dict[str, Any], conf: float = 0.25, iou_thres: float = 0.45
-    ) -> tuple[dict[str, torch.Tensor], list[int], list[int], np.ndarray]:
-        """Match detections to GT using the confusion-matrix confidence and IoU policy."""
-        gt_cls, gt_bboxes = batch["cls"], batch["bboxes"]
-        is_obb = gt_bboxes.shape[1] == 5
-        conf = 0.25 if conf in {None, 0.01 if is_obb else 0.001} else conf
-        detections = {k: detections[k][detections["conf"] > conf] for k in detections}
-        gt_classes = gt_cls.int().tolist()
-        detection_classes = detections["cls"].int().tolist()
-        if gt_cls.shape[0] == 0 or detections["cls"].shape[0] == 0:
-            return detections, gt_classes, detection_classes, np.zeros((0, 3))
+    def matrix(self):
+        """Return the confusion matrix."""
+        return self.matrix
 
-        bboxes = detections["bboxes"]
-        iou = batch_probiou(gt_bboxes, bboxes) if is_obb else box_iou(gt_bboxes, bboxes)
-        x = torch.where(iou > iou_thres)
-        if x[0].shape[0] == 0:
-            return detections, gt_classes, detection_classes, np.zeros((0, 3))
+    def tp_fp(self) -> tuple[np.ndarray, np.ndarray]:
+        """Return true positives and false positives.
 
-        matches = torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()
-        if x[0].shape[0] > 1:
-            matches = matches[matches[:, 2].argsort()[::-1]]
-            matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
-            matches = matches[matches[:, 2].argsort()[::-1]]
-            matches = matches[np.unique(matches[:, 0], return_index=True)[1]]
-        return detections, gt_classes, detection_classes, matches
-
-    def get_image_metrics(
-        self, detections: dict[str, torch.Tensor], batch: dict[str, Any], conf: float = 0.25, iou_thres: float = 0.45
-    ) -> dict[str, float]:
-        """Return per-image TP, FP, FN, precision, and recall using confusion-matrix filtering and matching."""
-        detections, gt_classes, detection_classes, matches = self._match_detections(detections, batch, conf, iou_thres)
-        m0, m1, _ = matches.transpose().astype(int) if matches.shape[0] > 0 else (np.array([], dtype=int),) * 3
-        matched_det = set()
-        tp, fn = 0, 0
-        for i, gc in enumerate(gt_classes):
-            j = np.flatnonzero(m0 == i)
-            if j.size == 1 and detection_classes[m1[j[0]]] == gc:
-                tp += 1
-                matched_det.add(m1[j[0]])
-            else:
-                fn += 1
-        fp = sum(
-            1 for i, dc in enumerate(detection_classes) if i not in matched_det or dc != gt_classes[m0[m1 == i][0]]
-        )
-
-        precision = tp / (tp + fp) if tp + fp else 0.0
-        recall = tp / (tp + fn) if tp + fn else 0.0
-        return {"tp": tp, "fp": fp, "fn": fn, "precision": precision, "recall": recall}
+        Returns:
+            tp (np.ndarray): True positives.
+            fp (np.ndarray): False positives.
+        """
+        tp = self.matrix.diagonal()  # true positives
+        fp = self.matrix.sum(1) - tp  # false positives
+        # fn = self.matrix.sum(0) - tp  # false negatives (missed detections)
+        return (tp, fp) if self.task == "classify" else (tp[:-1], fp[:-1])  # remove background class if task=detect
 
     def plot_matches(self, img: torch.Tensor, im_file: str, save_dir: Path) -> None:
         """Plot grid of GT, TP, FP, FN for each image.
@@ -1061,7 +1047,6 @@ class DetMetrics(SimpleClass, DataExportMixin):
         self.box = Metric()
         self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
         self.stats = dict(tp=[], conf=[], pred_cls=[], target_cls=[], target_img=[])
-        self.image_metrics = []
         self.nt_per_class = None
         self.nt_per_image = None
 
