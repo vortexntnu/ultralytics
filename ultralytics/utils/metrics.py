@@ -1017,8 +1017,8 @@ class Metric(SimpleClass):
         to `self.image_metrics`.
 
         Args:
-            tp (np.ndarray): True positive array of shape (num_preds, num_iou_thresholds),
-                where the first column (IoU >= 0.5) is used.
+            tp (np.ndarray): True positive array of shape (num_preds, num_iou_thresholds), where the first column (IoU
+                >= 0.5) is used.
             target_cls (np.ndarray): Ground truth class labels for the image.
             pred_cls (np.ndarray): Predicted class labels for the image.
             im_name (str): The name of the image file, used for tracking metrics per image.

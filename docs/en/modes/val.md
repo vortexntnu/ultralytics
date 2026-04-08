@@ -151,11 +151,11 @@ The below examples showcase YOLO model validation with custom arguments in Pytho
 
     # Validate and access per-image metrics
     results = model.val(data="coco8.yaml")
-    
+
     # image_metrics is a dictionary with image filenames as keys
     print(results.box.image_metrics)
     # Output: {'image1.jpg': {'precision': 0.85, 'recall': 0.92}, 'image2.jpg': {'precision': 0.78, 'recall': 0.88}, ...}
-    
+
     # Access metrics for a specific image
     results.box.image_metrics["image1.jpg"]  # {'precision': 0.85, 'recall': 0.92}
     ```
