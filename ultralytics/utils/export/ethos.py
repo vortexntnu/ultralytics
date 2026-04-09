@@ -24,7 +24,6 @@ def torch2ethos(
     Returns:
         (str): Path to the exported ExecuTorch with ARM Ethos-U Backend model directory.
     """
-
     from executorch import version as executorch_version
     from executorch.backends.arm.ethosu import EthosUCompileSpec
     from executorch.backends.arm.quantizer import EthosUQuantizer, get_symmetric_quantization_config
