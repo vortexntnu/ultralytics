@@ -65,7 +65,18 @@ def main(argv: list[str]) -> None:
     epochs = int(argv[5]) if len(argv) > 5 else None
     patience = int(argv[6]) if len(argv) > 6 else None
 
-    model_yaml = "yolo26s.yaml" if mode == "coco_det" else "yolo26s-cls.yaml"
+    if mode == "coco_det":
+        # Infer det model from phase1 cls model (e.g. yolo26s-cls.yaml -> yolo26s.yaml)
+        cls_yaml = "yolo26s-cls.yaml"
+        args_yaml = Path(phase1_weights).parent.parent / "args.yaml"
+        if args_yaml.exists():
+            for line in args_yaml.read_text().splitlines():
+                if line.startswith("model:"):
+                    cls_yaml = line.split(":", 1)[1].strip()
+                    break
+        model_yaml = cls_yaml.replace("-cls", "")
+    else:
+        model_yaml = "yolo26s-cls.yaml"
     wandb_group = "downstream-coco" if mode == "coco_det" else "downstream-imagenet"
 
     model = YOLO(model_yaml)
