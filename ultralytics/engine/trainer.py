@@ -28,6 +28,7 @@ from ultralytics import __version__
 from ultralytics.cfg import get_cfg, get_save_dir
 from ultralytics.data.utils import check_cls_dataset, check_det_dataset
 from ultralytics.nn.tasks import load_checkpoint
+from ultralytics.nn.distill_model import DistillationModel
 from ultralytics.optim import MuSGD
 from ultralytics.utils import (
     DEFAULT_CFG,
@@ -749,7 +750,22 @@ class BaseTrainer:
             cfg = weights.yaml
         elif isinstance(self.args.pretrained, (str, Path)):
             weights, _ = load_checkpoint(self.args.pretrained)
-        self.model = self.get_model(cfg=cfg, weights=weights, verbose=RANK in {-1, 0})  # calls Model(cfg, weights)
+
+        # rebuild DistillationModel from resuming checkpoint
+        if isinstance(weights, DistillationModel):
+            if RANK == -1:
+                LOGGER.info("Resuming training DistillationModel from checkpoint weights")
+            student_model = self.get_model(cfg=cfg, weights=None, verbose=RANK in {-1, 0})
+            student_model.args = self.args
+            model = DistillationModel(
+                student_model=student_model,
+                teacher_model=weights.teacher_model,
+            )
+            model.load_from_module(weights, strict=True)
+            model.criterion = None
+            self.model = model
+        else:
+            self.model = self.get_model(cfg=cfg, weights=weights, verbose=RANK in {-1, 0})
         return ckpt
 
     def optimizer_step(self):
