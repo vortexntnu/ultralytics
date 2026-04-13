@@ -177,8 +177,8 @@ Effective management of these aspects helps track progress and makes debugging a
 
 Load a saved YAML to reuse a full set of arguments without passing them inline. The `cfg` argument overrides values from `default.yaml`, while additional arguments passed alongside still take precedence.
 
-| Argument | Default | Description                                                                                                                                                              |
-| -------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Argument | Default | Description                                                                                                                                                            |
+| -------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `cfg`    | `None`  | Path to a YAML file whose values replace `default.yaml` entries. See [Overriding Default Config File](cli.md#overriding-default-config-file) for a worked CLI example. |
 
 ## FAQ
