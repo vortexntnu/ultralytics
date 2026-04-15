@@ -12,7 +12,8 @@ import numpy as np
 import torch
 
 from ultralytics.nn.modules import Detect, Pose, Segment
-from ultralytics.utils import LOGGER, WINDOWS
+from ultralytics.utils import IS_DEBIAN_BOOKWORM, IS_DEBIAN_TRIXIE, IS_RASPBERRYPI, IS_UBUNTU, LOGGER, WINDOWS
+from ultralytics.utils.checks import check_apt_requirements, check_requirements
 from ultralytics.utils.patches import onnx_export_patch
 from ultralytics.utils.tal import make_anchors
 from ultralytics.utils.torch_utils import copy_attr
@@ -246,6 +247,32 @@ def torch2imx(
         - Only supports YOLOv8n and YOLO11n models (detection, segmentation, pose, and classification tasks)
         - Output includes quantized ONNX model, IMX binary, and labels.txt file
     """
+    import re
+
+    # Install Java>=17
+    try:
+        java_output = subprocess.run(["java", "--version"], check=True, capture_output=True).stdout.decode()
+        version_match = re.search(r"(?:openjdk|java) (\d+)", java_output)
+        java_version = int(version_match.group(1)) if version_match else 0
+        assert java_version >= 17, "Java version too old"
+    except (FileNotFoundError, subprocess.CalledProcessError, AssertionError):
+        if IS_UBUNTU or IS_DEBIAN_TRIXIE:
+            LOGGER.info(f"\n{prefix} installing Java 21 for Ubuntu...")
+            check_apt_requirements(["openjdk-21-jre"])
+        elif IS_RASPBERRYPI or IS_DEBIAN_BOOKWORM:
+            LOGGER.info(f"\n{prefix} installing Java 17 for Raspberry Pi or Debian ...")
+            check_apt_requirements(["openjdk-17-jre"])
+
+    check_requirements(
+        (
+            "model-compression-toolkit>=2.4.1",
+            "edge-mdt-cl<1.1.0",
+            "edge-mdt-tpc>=1.2.0",
+            "pydantic<=2.11.7",
+        )
+    )
+
+    check_requirements("imx500-converter[pt]>=3.17.3")
     import model_compression_toolkit as mct
     import onnx
     from edgemdt_tpc import get_target_platform_capabilities
