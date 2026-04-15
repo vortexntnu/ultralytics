@@ -91,10 +91,9 @@ def on_predict_start(predictor):
 def on_predict_batch_end(predictor):
     """Queue/update a predict event with the latest batch metadata.
 
-    Events.__call__ upserts by mode name, so repeated calls from a long-running stream overwrite
-    the queued entry rather than appending, keeping memory bounded. The rate limiter inside
-    Events.__call__ ensures at most one POST per rate_limit seconds during the run, and
-    on_predict_end flushes any remaining pending event after the final batch.
+    Events.__call__ upserts by mode name, so repeated calls from a long-running stream overwrite the queued entry rather
+    than appending, keeping memory bounded. The rate limiter inside Events.__call__ ensures at most one POST per
+    rate_limit seconds during the run, and on_predict_end flushes any remaining pending event after the final batch.
     """
     model = getattr(predictor, "model", None)
     backend = getattr(model, "backend", None)
