@@ -371,7 +371,7 @@ Ultralytics provides ready-to-use solutions for common computer vision applicati
 
         ```bash
         yolo solutions region show=True
-        yolo solutions region source="path/to/video.mp4" # specify video file path
+        yolo solutions region source="path/to/video.mp4"                                # specify video file path
         yolo solutions region region="[(20, 400), (1080, 400), (1080, 360), (20, 360)]" # configure region coordinates
         ```
 
@@ -382,7 +382,7 @@ Ultralytics provides ready-to-use solutions for common computer vision applicati
         ```bash
         yolo solutions security show=True
         yolo solutions security source="path/to/video.mp4" # specify video file path
-        yolo solutions security records=10 # set detection threshold for alerts
+        yolo solutions security records=10                 # set detection threshold for alerts
         ```
 
     === "Parking"
