@@ -342,14 +342,42 @@ def ltwh2xywh(x):
     return y
 
 
+def _close_polygon(points: np.ndarray, rel_eps: float = 1e-1) -> np.ndarray:
+    """Drop a trailing duplicate vertex if the polygon is closed (first ≈ last).
+
+    Many OBB labels are stored as closed 5-point polygons (p1, p2, p3, p4, p1). This helper
+    detects that case per-instance and returns a polygon with the duplicate removed, so that
+    downstream code can treat it as a clean 4-corner OBB. Closeness is measured as
+    ||p_last - p_first|| / diag(bbox(polygon)) < rel_eps, so the threshold works in both
+    normalized and pixel coordinates.
+
+    Args:
+        points (np.ndarray): Polygons with shape (N, M, 2).
+        rel_eps (float): Relative threshold for considering p_first ≈ p_last.
+
+    Returns:
+        (np.ndarray): (N, M-1, 2) if every polygon is closed, otherwise input unchanged.
+    """
+    if points.shape[1] < 3:
+        return points
+    first, last = points[:, 0], points[:, -1]
+    diag = np.linalg.norm(points.max(axis=1) - points.min(axis=1), axis=-1)
+    gap = np.linalg.norm(last - first, axis=-1)
+    if np.all(gap <= rel_eps * np.maximum(diag, 1e-12)):
+        return points[:, :-1]
+    return points
+
+
 def xyxyxyxy2xywhr(x):
     """Convert batched Oriented Bounding Boxes (OBB) from [xy1, xy2, xy3, xy4] to [xywh, rotation] format.
 
-    When input has exactly 4 points per instance, the ordered corner convention is used to derive an
-    angle from atan2 of the p1->p2 edge. The result is then folded into [-pi/2, pi/2) to bake in C2
-    symmetry (angle is only defined modulo pi): two label orderings that differ by a 180° rotation of
-    the same physical object produce the same xywhr target. For densely sampled polygons (>4 points
-    per instance, e.g. clipped/augmented) falls back to cv2.minAreaRect and returns an angle in
+    Closed polygons (e.g. the common 5-point form (p1, p2, p3, p4, p1)) are collapsed to 4 unique
+    corners via _close_polygon before the directed conversion. When input has exactly 4 points per
+    instance, the ordered corner convention is used to derive an angle from atan2 of the p1->p2
+    edge. The result is then folded into [-pi/2, pi/2) to bake in C2 symmetry (angle is only
+    defined modulo pi): two label orderings that differ by a 180° rotation of the same physical
+    object produce the same xywhr target. For densely sampled polygons (>4 unique points per
+    instance, e.g. clipped/augmented) falls back to cv2.minAreaRect and returns an angle in
     [-pi/4, 3pi/4).
 
     Corner convention (4 ordered corners p1, p2, p3, p4):
@@ -371,6 +399,7 @@ def xyxyxyxy2xywhr(x):
     is_torch = isinstance(x, torch.Tensor)
     points = x.cpu().numpy() if is_torch else x
     points = points.reshape(len(x), -1, 2)
+    points = _close_polygon(points)
 
     if points.shape[1] == 4:
         p1, p2, _p3, p4 = points[:, 0], points[:, 1], points[:, 2], points[:, 3]

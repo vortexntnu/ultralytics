@@ -266,8 +266,11 @@ class YOLODataset(BaseDataset):
         normalized = label.pop("normalized")
 
         # NOTE: do NOT resample oriented boxes — keep the 4 ordered corners so that
-        # xyxyxyxy2xywhr can recover the directed angle tied to the label corner order.
-        segment_resamples = 4 if self.use_obb else 1000
+        # xyxyxyxy2xywhr can recover the directed angle tied to the label corner order. We use 5
+        # (closed 4-corner polygon) to uniformly handle both 4-point and 5-point label formats:
+        # 4-point labels get a trailing duplicate added, 5-point closed polygons pass through
+        # unchanged, and xyxyxyxy2xywhr's _close_polygon helper collapses the duplicate back.
+        segment_resamples = 5 if self.use_obb else 1000
         if len(segments) > 0:
             # make sure segments interpolate correctly if original length is greater than segment_resamples
             max_len = max(len(s) for s in segments)
