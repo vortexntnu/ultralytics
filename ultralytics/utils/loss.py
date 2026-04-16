@@ -1105,16 +1105,15 @@ class v8OBBLoss(v8DetectionLoss):
         return torch.cat((dist2rbox(pred_dist, pred_angle, anchor_points), pred_angle), dim=-1)
 
     def calculate_angle_loss(self, pred_bboxes, target_bboxes, fg_mask, weight, target_scores_sum, lambda_val=3):
-        """Calculate directed angle loss (2*pi-periodic).
+        """Calculate pi-periodic angle loss for C2-symmetric objects.
 
-        The original loss used sin(2*delta)^2 with delta wrapped to [-pi/2, pi/2), which makes the
-        loss pi/2-periodic — rotations by 90° or 180° produce identical loss and the model can't
-        learn a directed orientation. We replace it with (1 - cos(delta)), which is 2*pi-periodic,
-        smooth everywhere, and distinguishes all four 90° rotations of a square.
+        Replaces the original sin(2*delta)^2 (pi/2-periodic, C4 / square symmetry) with
+        (1 - cos(2*delta)) / 2, which is pi-periodic (C2 symmetry): predictions that differ from
+        the target by pi produce zero loss. Cos handles the wrap implicitly, so no delta-wrapping is
+        needed. Numerically this equals sin(delta)^2, i.e. the original loss but without the 2x
+        inside sin.
 
-        The aspect-ratio scale weight is kept: near-square objects get a lower angle weight since
-        undirected angle is intrinsically ambiguous for a perfect square — but the loss itself is
-        no longer folded, so a directed-corner-labelled square still gets a clean gradient.
+        The aspect-ratio scale weight is kept as before.
 
         Args:
             pred_bboxes (torch.Tensor): Predicted bounding boxes with shape [N, 5] (x, y, w, h, theta).
@@ -1136,7 +1135,7 @@ class v8OBBLoss(v8DetectionLoss):
         scale_weight = torch.exp(-(log_ar**2) / (lambda_val**2))
 
         delta_theta = pred_theta - target_theta
-        ang_loss = (1.0 - torch.cos(delta_theta[fg_mask]))
+        ang_loss = 0.5 * (1.0 - torch.cos(2.0 * delta_theta[fg_mask]))
 
         ang_loss = scale_weight[fg_mask] * ang_loss
         ang_loss = ang_loss * weight

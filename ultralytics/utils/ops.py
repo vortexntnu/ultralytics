@@ -345,22 +345,22 @@ def ltwh2xywh(x):
 def xyxyxyxy2xywhr(x):
     """Convert batched Oriented Bounding Boxes (OBB) from [xy1, xy2, xy3, xy4] to [xywh, rotation] format.
 
-    When input has exactly 4 points per instance, the ordered corner convention is preserved and the
-    returned angle lies in [-pi, pi) — i.e. a directed orientation tied to the label's corner order.
-    For densely sampled polygons (>4 points per instance, e.g. clipped/augmented), falls back to
-    cv2.minAreaRect and returns an undirected angle in [-pi/4, 3pi/4).
+    When input has exactly 4 points per instance, the ordered corner convention is used to derive an
+    angle from atan2 of the p1->p2 edge. The result is then folded into [-pi/2, pi/2) to bake in C2
+    symmetry (angle is only defined modulo pi): two label orderings that differ by a 180° rotation of
+    the same physical object produce the same xywhr target. For densely sampled polygons (>4 points
+    per instance, e.g. clipped/augmented) falls back to cv2.minAreaRect and returns an angle in
+    [-pi/4, 3pi/4).
 
-    Directed convention (4 ordered corners p1, p2, p3, p4):
+    Corner convention (4 ordered corners p1, p2, p3, p4):
         cx, cy = mean of the 4 corners
-        vec_w  = midpoint(p1, p2) - center   (half the "forward" edge)
+        vec_w  = midpoint(p1, p2) - center   (half the "w" edge)
         vec_h  = midpoint(p4, p1) - center   (half the perpendicular edge)
         w      = 2 * ||vec_w||
         h      = 2 * ||vec_h||
-        angle  = atan2(vec_w.y, vec_w.x)
+        theta  = atan2(vec_w.y, vec_w.x) folded into [-pi/2, pi/2)
 
-    This matches the corner order produced by xywhr2xyxyxyxy so that xywhr -> corners -> xywhr is an
-    identity, and a full 360° orientation is preserved (e.g. a square rotated by 0/90/180/270° has
-    four distinct angle values).
+    This matches the corner order produced by xywhr2xyxyxyxy up to the C2 equivalence.
 
     Args:
         x (np.ndarray | torch.Tensor): Input box corners with shape (N, 8) or (N, M, 2) in [xy1, xy2, xy3, xy4] order.
@@ -373,14 +373,15 @@ def xyxyxyxy2xywhr(x):
     points = points.reshape(len(x), -1, 2)
 
     if points.shape[1] == 4:
-        # Directed path: use the 4 ordered corners to derive a full-range angle in [-pi, pi).
         p1, p2, _p3, p4 = points[:, 0], points[:, 1], points[:, 2], points[:, 3]
         cxcy = points.mean(axis=1)
         vec_w = (p1 + p2) / 2 - cxcy  # half the p1->p2 edge
-        vec_h = (p4 + p1) / 2 - cxcy  # half the p4->p1 edge (perpendicular, sign not used)
+        vec_h = (p4 + p1) / 2 - cxcy  # half the p4->p1 edge (sign not used)
         w = 2 * np.linalg.norm(vec_w, axis=-1)
         h = 2 * np.linalg.norm(vec_h, axis=-1)
         theta = np.arctan2(vec_w[:, 1], vec_w[:, 0])
+        # C2 fold into [-pi/2, pi/2): angle is defined modulo pi for a 180°-symmetric object.
+        theta = (theta + np.pi / 2) % np.pi - np.pi / 2
         rboxes = np.stack([cxcy[:, 0], cxcy[:, 1], w, h, theta], axis=-1).astype(np.float32)
         return torch.tensor(rboxes, device=x.device, dtype=x.dtype) if is_torch else rboxes
 
@@ -632,20 +633,21 @@ def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None, normalize: bool
 
 
 def regularize_rboxes(rboxes):
-    """Wrap rotation angle into [-pi, pi) without collapsing the directed orientation.
+    """Fold the rotation angle into [-pi/2, pi/2) to match C2 symmetry (0 ≡ pi).
 
-    The previous behavior swapped width/height and folded the angle to [0, pi/2) — that destroys
-    the directed-axis convention that xyxyxyxy2xywhr now carries through training. To preserve it,
-    we keep (w, h) as-is and only wrap theta into a canonical [-pi, pi) range.
+    The previous behavior swapped width/height and folded the angle to [0, pi/2) — a C4 / square
+    symmetry canonicalization that throws away the distinction between 0° and 90° orientations.
+    For C2-symmetric objects the correct equivalence class spans pi, so we keep (w, h) as-is and
+    fold theta into [-pi/2, pi/2).
 
     Args:
         rboxes (torch.Tensor): Input rotated boxes with shape (N, 5) in xywhr format.
 
     Returns:
-        (torch.Tensor): Boxes with angle wrapped to [-pi, pi).
+        (torch.Tensor): Boxes with angle folded into [-pi/2, pi/2).
     """
     x, y, w, h, t = rboxes.unbind(dim=-1)
-    t = (t + math.pi) % (2 * math.pi) - math.pi
+    t = (t + math.pi / 2) % math.pi - math.pi / 2
     return torch.stack([x, y, w, h, t], dim=-1)
 
 
