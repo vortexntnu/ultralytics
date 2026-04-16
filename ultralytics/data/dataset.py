@@ -265,8 +265,9 @@ class YOLODataset(BaseDataset):
         bbox_format = label.pop("bbox_format")
         normalized = label.pop("normalized")
 
-        # NOTE: do NOT resample oriented boxes
-        segment_resamples = 100 if self.use_obb else 1000
+        # NOTE: do NOT resample oriented boxes — keep the 4 ordered corners so that
+        # xyxyxyxy2xywhr can recover the directed angle tied to the label corner order.
+        segment_resamples = 4 if self.use_obb else 1000
         if len(segments) > 0:
             # make sure segments interpolate correctly if original length is greater than segment_resamples
             max_len = max(len(s) for s in segments)

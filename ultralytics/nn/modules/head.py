@@ -480,7 +480,8 @@ class OBB(Detect):
             angle = torch.cat(
                 [angle_head[i](x[i]).view(bs, self.ne, -1) for i in range(self.nl)], 2
             )  # OBB theta logits
-            angle = (angle.sigmoid() - 0.25) * math.pi  # [-pi/4, 3pi/4]
+            # Full directed range [-pi, pi) so the ordered-corner angle from xyxyxyxy2xywhr can be learned.
+            angle = (angle.sigmoid() - 0.5) * 2 * math.pi
             preds["angle"] = angle
         return preds
 
