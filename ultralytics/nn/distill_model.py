@@ -65,14 +65,9 @@ class DistillationModel(nn.Module):
         # Hook-based feature capture: identical for teacher and student
         self._teacher_feats = {}
         self._student_feats = {}
-        self._hooks = []
         for idx in feats_idx:
-            self._hooks.append(
-                self.teacher_model.model[idx].register_forward_hook(FeatureHook(self._teacher_feats, idx))
-            )
-            self._hooks.append(
-                self.student_model.model[idx].register_forward_hook(FeatureHook(self._student_feats, idx))
-            )
+            self.teacher_model.model[idx].register_forward_hook(FeatureHook(self._teacher_feats, idx))
+            self.student_model.model[idx].register_forward_hook(FeatureHook(self._student_feats, idx))
 
         # Get feature dimensions via dummy forward pass (hooks capture outputs)
         imgsz = student_model.args.imgsz
@@ -106,7 +101,6 @@ class DistillationModel(nn.Module):
     def __getstate__(self):
         """Return a clean copy of state for pickling without hooks and extracted features."""
         state = self.__dict__.copy()
-        state["_hooks"] = []
         state["_teacher_feats"] = {}
         state["_student_feats"] = {}
         return state
@@ -116,17 +110,12 @@ class DistillationModel(nn.Module):
         self.__dict__.update(state)
         self._teacher_feats = {}
         self._student_feats = {}
-        self._hooks = []
         for idx in self.feats_idx:
             # Clear stale hooks that were pickled with the submodels
             self.teacher_model.model[idx]._forward_hooks.clear()
             self.student_model.model[idx]._forward_hooks.clear()
-            self._hooks.append(
-                self.teacher_model.model[idx].register_forward_hook(FeatureHook(self._teacher_feats, idx))
-            )
-            self._hooks.append(
-                self.student_model.model[idx].register_forward_hook(FeatureHook(self._student_feats, idx))
-            )
+            self.teacher_model.model[idx].register_forward_hook(FeatureHook(self._teacher_feats, idx))
+            self.student_model.model[idx].register_forward_hook(FeatureHook(self._student_feats, idx))
 
     @staticmethod
     def get_distill_layers(model):
