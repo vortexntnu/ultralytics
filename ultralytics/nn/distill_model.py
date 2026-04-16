@@ -96,7 +96,7 @@ class DistillationModel(nn.Module):
                     nn.Conv2d(teacher_dim, teacher_dim, kernel_size=1, stride=1, padding=0),
                 )
             )
-        self.projector = nn.ModuleList(projectors)
+        self.projector = nn.ModuleList(projectors).to(device)
 
     def __getstate__(self):
         """Return a clean copy of state for pickling without hooks and extracted features."""
