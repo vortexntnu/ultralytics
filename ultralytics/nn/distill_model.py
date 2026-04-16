@@ -167,7 +167,7 @@ class DistillationModel(nn.Module):
             batch (dict): Batch to compute loss on.
             preds (torch.Tensor | list[torch.Tensor], optional): Predictions.
         """
-        if not self.training:
+        if not self.training:  # for loss calculation during validation while training
             preds = self.student_model(batch["img"])
             regular_loss, regular_loss_detach = self.student_model.loss(batch, preds)
             loss_distill = torch.zeros(1, device=batch["img"].device)

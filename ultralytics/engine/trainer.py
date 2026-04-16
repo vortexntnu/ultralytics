@@ -632,12 +632,6 @@ class BaseTrainer:
     def _model_train(self):
         """Set model in training mode."""
         self.model.train()
-        model = unwrap_model(self.model)
-        if isinstance(model, DistillationModel):
-            model.teacher_model.eval()
-            for p in model.teacher_model.parameters():
-                if p.requires_grad:
-                    p.requires_grad = False
         # Freeze BN stat
         for n, m in self.model.named_modules():
             if any(filter(lambda f: f in n, self.freeze_layer_names)) and isinstance(m, nn.BatchNorm2d):
