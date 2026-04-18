@@ -360,6 +360,38 @@ class Annotator:
                     lineType=cv2.LINE_AA,
                 )
 
+    def obb_angle_line(self, cx, cy, w, h, theta, color=(255, 255, 255)):
+        """Draw a direction line through an OBB center and annotate with the angle in degrees.
+
+        The line runs along the width axis (p1->p2 edge direction) matching the fork's
+        xyxyxyxy2xywhr convention: theta = atan2(vec_w.y, vec_w.x) folded to [-pi/2, pi/2).
+
+        Args:
+            cx (float): Box center x in pixel coords.
+            cy (float): Box center y in pixel coords.
+            w (float): Box width in pixels (sets line length).
+            h (float): Box height in pixels (unused, kept for clean unpacking).
+            theta (float): Angle in radians, folded to [-pi/2, pi/2).
+            color (tuple): RGB base color; line is drawn in a lightened version for contrast.
+        """
+        half = w / 2.0
+        ux, uy = math.cos(theta), math.sin(theta)
+        x1, y1 = int(cx - ux * half), int(cy - uy * half)
+        x2, y2 = int(cx + ux * half), int(cy + uy * half)
+        # Lighten the class color so the line is distinct from the box outline
+        line_color = tuple(min(255, int(c * 0.4 + 200)) for c in color)
+        deg_val = math.degrees(theta)
+        if self.pil:
+            self.draw.line([(x1, y1), (x2, y2)], fill=line_color, width=max(1, self.lw))
+            self.draw.text((int(cx) + 4, int(cy) + 4), f"{deg_val:.1f}\u00b0", fill=line_color, font=self.font)
+        else:
+            cv2.line(self.im, (x1, y1), (x2, y2), line_color, self.lw, cv2.LINE_AA)
+            cv2.putText(
+                self.im, f"{deg_val:.1f}deg",
+                (int(cx) + 4, int(cy) + 4),
+                0, self.sf, line_color, self.tf, cv2.LINE_AA,
+            )
+
     def masks(self, masks, colors, im_gpu: torch.Tensor = None, alpha: float = 0.5, retina_masks: bool = False):
         """Plot masks on image.
 
@@ -786,6 +818,7 @@ def plot_images(
                 boxes[..., 0] += x
                 boxes[..., 1] += y
                 is_obb = boxes.shape[-1] == 5  # xywhr
+                xywhr_orig = boxes.copy() if is_obb else None
                 boxes = ops.xywhr2xyxyxyxy(boxes) if is_obb else ops.xywh2xyxy(boxes)
                 for j, box in enumerate(boxes.astype(np.int64).tolist()):
                     c = classes[j]
@@ -794,6 +827,8 @@ def plot_images(
                     if labels or conf[j] > conf_thres:
                         label = f"{c}" if labels else f"{c} {conf[j]:.1f}"
                         annotator.box_label(box, label, color=color)
+                        if xywhr_orig is not None:
+                            annotator.obb_angle_line(*xywhr_orig[j], color=color)
 
             elif len(classes):
                 for c in classes:
